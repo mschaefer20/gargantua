@@ -46,7 +46,7 @@ export interface SolarSettings {
 }
 
 export const defaultSolarSettings: SolarSettings = {
-  timeSpeed: 0.75,   // 75% of the old "normal" rate by default
+  timeSpeed: 1.0,
   orbitLines: 1.0,
   glow: 1.0,
   bloomStrength: 0.8,
@@ -105,7 +105,6 @@ export class SolarRenderer {
   private target = new Float32Array([0, 0, 0]);
 
   private simTime = 0;
-  private devSpeed = false;       // dev mode: force a slow 20% rate
   private lastNow = performance.now();
   private startTime = performance.now();
   private raf = 0;
@@ -249,9 +248,7 @@ export class SolarRenderer {
     const t = (now - this.startTime) / 1000;
     const s = this.settings;
 
-    // Dev speed pins the simulation to a slow 20% rate; otherwise use the slider.
-    const effectiveSpeed = this.devSpeed ? 0.20 : s.timeSpeed;
-    this.simTime += dt * effectiveSpeed;
+    this.simTime += dt * s.timeSpeed;
     this.computeBodies();
 
     // smooth focus retarget
@@ -272,7 +269,7 @@ export class SolarRenderer {
     gl.viewport(0, 0, this.rw, this.rh);
     gl.useProgram(this.sceneProg);
     this.setF2('u_resolution', this.sceneProg, this.rw, this.rh);
-    gl.uniform1f(gl.getUniformLocation(this.sceneProg, 'u_time'), this.simTime);
+    gl.uniform1f(gl.getUniformLocation(this.sceneProg, 'u_time'), t * s.timeSpeed + this.simTime);
     gl.uniform3fv(gl.getUniformLocation(this.sceneProg, 'u_camPos'), pos);
     gl.uniformMatrix3fv(gl.getUniformLocation(this.sceneProg, 'u_camMat'), false, mat);
     gl.uniform1f(gl.getUniformLocation(this.sceneProg, 'u_fov'), 1.0);
@@ -324,9 +321,6 @@ export class SolarRenderer {
     }
     this.raf = requestAnimationFrame(this.renderFrame);
   };
-
-  setDevSpeed(on: boolean) { this.devSpeed = on; }
-  isDevSpeed() { return this.devSpeed; }
 
   // Focus the camera on a body and pull in to a sensible distance.
   focus(index: number) {
