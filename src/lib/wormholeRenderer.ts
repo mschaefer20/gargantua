@@ -21,11 +21,11 @@ export interface WormholeSettings {
 }
 
 export const defaultWormholeSettings: WormholeSettings = {
-  speed: 6.0,
+  speed: 5.0,
   warp: 1.0,
   throat: 1.0,
-  bloomStrength: 0.85,
-  exposure: 0.95,
+  bloomStrength: 0.5,
+  exposure: 1.05,
   resScale: 1.0,
 };
 
