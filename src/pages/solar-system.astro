@@ -2,7 +2,7 @@
 import '../styles/global.css';
 
 const description =
-  'Orbit a living spiral galaxy — a glowing core, dust-laned arms winding with differential rotation, pink star-forming knots, and a sky full of stars. Volumetric WebGL2 in your browser.';
+  'A detailed, real-time solar system — a granulating Sun, eight procedurally-rendered worlds with clouds, ice caps, storms and city lights, Saturn\'s shadowed rings, and the Moon. Orbit it, speed up time, and fly to any planet. WebGL2.';
 ---
 
 <!doctype html>
@@ -12,54 +12,57 @@ const description =
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <meta name="description" content={description} />
     <meta name="theme-color" content="#000005" />
-    <meta property="og:title" content="Spiral Galaxy" />
+    <meta property="og:title" content="Solar System — Real-Time Simulator" />
     <meta property="og:description" content={description} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
-    <title>Spiral Galaxy — Volumetric Simulator</title>
+    <title>Solar System — Real-Time Simulator</title>
   </head>
   <body>
     <div id="app">
       <canvas id="gl"></canvas>
 
       <header class="title">
-        <h1>Spiral Galaxy</h1>
+        <h1>Solar System</h1>
         <p>{description}</p>
       </header>
 
       <nav class="page-nav">
         <a href="/" class="navlink">Black Hole</a>
         <a href="/wormhole" class="navlink">Wormhole</a>
-        <a href="/solar-system" class="navlink">Solar System</a>
+        <a href="/galaxy" class="navlink">Galaxy</a>
       </nav>
 
       <aside class="panel" id="panel">
-        <h2>Controls</h2>
+        <h2>Mission Control</h2>
+
         <div class="ctrl">
-          <label>Star Brightness <span class="val" data-val="brightness">100%</span></label>
-          <input type="range" id="brightness" min="0.2" max="2.5" step="0.01" value="1" />
+          <label>Fly to</label>
+          <div class="bodies" id="bodies"></div>
+        </div>
+
+        <div class="ctrl">
+          <label>Time Speed <span class="val" data-val="timeSpeed">1.0&times;</span></label>
+          <input type="range" id="timeSpeed" min="0" max="8" step="0.1" value="1" />
         </div>
         <div class="ctrl">
-          <label>Dust Lanes <span class="val" data-val="dust">100%</span></label>
-          <input type="range" id="dust" min="0" max="2" step="0.01" value="1" />
+          <label>Orbit Lines <span class="val" data-val="orbitLines">100%</span></label>
+          <input type="range" id="orbitLines" min="0" max="1" step="0.01" value="1" />
         </div>
         <div class="ctrl">
-          <label>Background Stars <span class="val" data-val="starBrightness">100%</span></label>
-          <input type="range" id="starBrightness" min="0" max="2" step="0.01" value="1" />
+          <label>Sun Glow <span class="val" data-val="glow">100%</span></label>
+          <input type="range" id="glow" min="0" max="2.5" step="0.01" value="1" />
         </div>
         <div class="ctrl">
-          <label>Bloom <span class="val" data-val="bloomStrength">70%</span></label>
-          <input type="range" id="bloomStrength" min="0" max="2" step="0.01" value="0.7" />
+          <label>Bloom <span class="val" data-val="bloomStrength">80%</span></label>
+          <input type="range" id="bloomStrength" min="0" max="2" step="0.01" value="0.8" />
         </div>
         <div class="ctrl">
           <label>Exposure <span class="val" data-val="exposure">1.10</span></label>
           <input type="range" id="exposure" min="0.4" max="2.5" step="0.01" value="1.1" />
         </div>
-        <div class="ctrl">
-          <label>Render Quality <span class="val" data-val="quality">1.0&times;</span></label>
-          <input type="range" id="quality" min="0.5" max="1.8" step="0.05" value="1" />
-        </div>
+
         <div class="row">
           <button class="btn active" id="autoRotate">Auto-Orbit</button>
           <button class="btn" id="reset">Reset View</button>
@@ -73,17 +76,17 @@ const description =
 
       <footer class="hud">
         <span><span class="dot"></span> <span class="fps" id="fps">— fps</span></span>
-        <span class="hint">Drag to orbit · Scroll to zoom · Pinch on touch</span>
+        <span class="hint">Drag to orbit · Scroll to zoom · Click a world to fly there</span>
       </footer>
 
       <div class="overlay" id="overlay">
         <div class="spinner" id="spinner"></div>
-        <p id="status">Spinning up the arms…</p>
+        <p id="status">Aligning the planets…</p>
       </div>
     </div>
 
     <script>
-      import { GalaxyRenderer, defaultGalaxySettings } from '../lib/galaxyRenderer';
+      import { SolarRenderer, defaultSolarSettings, BODIES } from '../lib/solarRenderer';
 
       const canvas = document.getElementById('gl') as HTMLCanvasElement;
       const overlay = document.getElementById('overlay')!;
@@ -97,25 +100,39 @@ const description =
       }
 
       try {
-        const settings = { ...defaultGalaxySettings };
-        const renderer = new GalaxyRenderer(canvas, settings);
+        const settings = { ...defaultSolarSettings };
+        const renderer = new SolarRenderer(canvas, settings);
+
+        // build planet focus buttons
+        const bodiesEl = document.getElementById('bodies')!;
+        BODIES.forEach((b, i) => {
+          if (b.name === 'Moon') return; // reachable by flying to Earth
+          const btn = document.createElement('button');
+          btn.className = 'chip' + (i === 0 ? ' active' : '');
+          btn.textContent = b.name;
+          btn.addEventListener('click', () => {
+            renderer.focus(i);
+            bodiesEl.querySelectorAll('.chip').forEach((c) => c.classList.remove('active'));
+            btn.classList.add('active');
+          });
+          bodiesEl.appendChild(btn);
+        });
 
         const fpsEl = document.getElementById('fps')!;
         let lowFrames = 0;
         renderer.onFps = (fps) => {
           fpsEl.textContent = Math.round(fps) + ' fps';
           if (fps < 28 && settings.resScale > 0.6) {
-            if (++lowFrames > 6) { settings.resScale = 0.7; settings.quality = 0.8; lowFrames = 0; }
+            if (++lowFrames > 6) { settings.resScale = 0.7; lowFrames = 0; }
           } else lowFrames = 0;
         };
 
         const sliders: Record<string, (v: number) => string> = {
-          brightness: (v) => Math.round(v * 100) + '%',
-          dust: (v) => Math.round(v * 100) + '%',
-          starBrightness: (v) => Math.round(v * 100) + '%',
+          timeSpeed: (v) => v.toFixed(1) + '×',
+          orbitLines: (v) => Math.round(v * 100) + '%',
+          glow: (v) => Math.round(v * 100) + '%',
           bloomStrength: (v) => Math.round(v * 100) + '%',
           exposure: (v) => v.toFixed(2),
-          quality: (v) => v.toFixed(1) + '×',
         };
         for (const key of Object.keys(sliders)) {
           const input = document.getElementById(key) as HTMLInputElement;
@@ -135,6 +152,7 @@ const description =
         document.getElementById('reset')!.addEventListener('click', () => {
           renderer.resetView();
           autoBtn.classList.add('active');
+          bodiesEl.querySelectorAll('.chip').forEach((c, idx) => c.classList.toggle('active', idx === 0));
         });
 
         const panel = document.getElementById('panel')!;

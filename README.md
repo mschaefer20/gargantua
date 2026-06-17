@@ -25,6 +25,18 @@ of JS, deploys to **Cloudflare Pages** as a static site.
   lensing strength, disk glow, bloom, exposure, starfield and render quality.
 - **Adaptive performance** — auto-scales resolution if the framerate drops.
 
+## 🌌 Scenes
+
+The app is a small gallery of WebGL2 space simulations, cross-linked in the UI
+and sharing one HDR bloom + ACES post-pipeline:
+
+| Page | Route | What it is |
+|------|-------|-----------|
+| **Black Hole** | `/` | Geodesic-traced Schwarzschild black hole with a lensed accretion disk. |
+| **Wormhole** | `/wormhole` | A calm, deep-space flight through a spacetime tunnel toward a distant throat. |
+| **Spiral Galaxy** | `/galaxy` | Orbitable volumetric galaxy — glowing core, dust-laned arms, HII knots. |
+| **Solar System** | `/solar-system` | Sun + 8 procedural planets + the Moon, Saturn's shadowed rings, orbit lines, fly-to-any-world camera. |
+
 ## 🚀 Develop
 
 ```bash

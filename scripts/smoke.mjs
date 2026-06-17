@@ -76,7 +76,18 @@ async function main() {
 
   await send('Runtime.enable');
   await send('Page.enable');
-  await sleep(4000); // let it render several frames
+  await sleep(2000);
+
+  // Optional: click a focus chip / button by its text (argv[3]) and let the
+  // camera fly there before screenshotting.
+  const clickText = process.argv[3];
+  if (clickText) {
+    await send('Runtime.evaluate', {
+      expression: `[...document.querySelectorAll('.chip,.btn,button')].find(b=>b.textContent.trim()==='${clickText}')?.click()`,
+    });
+    await sleep(3500);
+  }
+  await sleep(2000); // let it render several frames
 
   const fps = await send('Runtime.evaluate', {
     expression: "document.getElementById('fps')?.textContent || 'n/a'",

@@ -127,6 +127,27 @@ input[type="range"]::-moz-range-thumb {
   cursor: pointer;
 }
 
+/* planet focus chips */
+.bodies { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--fg);
+  background: rgba(110, 140, 220, 0.10);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.18s, transform 0.1s, border-color 0.18s;
+}
+.chip:hover { background: rgba(110, 140, 220, 0.24); }
+.chip:active { transform: scale(0.94); }
+.chip.active {
+  background: linear-gradient(100deg, var(--accent), var(--accent2));
+  color: #06070f;
+  border-color: transparent;
+}
+
 .row { display: flex; gap: 8px; margin-top: 14px; }
 .btn {
   flex: 1;
