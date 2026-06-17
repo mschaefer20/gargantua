@@ -1,3 +1,8 @@
-name = "black-hole-simulator"
+name = "gargantua"
 compatibility_date = "2024-11-01"
-pages_build_output_dir = "dist"
+
+# Static-assets-only Worker: no server script, Cloudflare serves ./dist
+# directly. `wrangler deploy` (the command Cloudflare's build runs) uploads it.
+[assets]
+directory = "./dist"
+not_found_handling = "single-page-application"
