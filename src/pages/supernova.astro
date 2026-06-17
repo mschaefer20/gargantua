@@ -3,7 +3,7 @@ import '../styles/global.css';
 import SceneNav from '../components/SceneNav.astro';
 
 const description =
-  'Orbit a living spiral galaxy — a glowing core, dust-laned arms winding with differential rotation, pink star-forming knots, and a sky full of stars. Volumetric WebGL2 in your browser.';
+  'Witness a star detonate, over and over — a blinding core flash launches a decelerating shockwave of turbulent filaments that cools from blue-white to red before re-igniting. Volumetric WebGL2.';
 ---
 
 <!doctype html>
@@ -13,49 +13,41 @@ const description =
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <meta name="description" content={description} />
     <meta name="theme-color" content="#000005" />
-    <meta property="og:title" content="Spiral Galaxy" />
+    <meta property="og:title" content="Supernova — Stellar Explosion Simulator" />
     <meta property="og:description" content={description} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
-    <title>Spiral Galaxy — Volumetric Simulator</title>
+    <title>Supernova — Stellar Explosion Simulator</title>
   </head>
   <body>
     <div id="app">
       <canvas id="gl"></canvas>
 
       <header class="title">
-        <h1>Spiral Galaxy</h1>
+        <h1>Supernova</h1>
         <p>{description}</p>
       </header>
 
-      <SceneNav current="/galaxy" />
+      <SceneNav current="/supernova" />
 
       <aside class="panel" id="panel">
         <h2>Controls</h2>
         <div class="ctrl">
-          <label>Star Brightness <span class="val" data-val="brightness">100%</span></label>
-          <input type="range" id="brightness" min="0.2" max="2.5" step="0.01" value="1" />
+          <label>Cycle Length <span class="val" data-val="period">11.0s</span></label>
+          <input type="range" id="period" min="4" max="20" step="0.5" value="11" />
         </div>
         <div class="ctrl">
-          <label>Dust Lanes <span class="val" data-val="dust">100%</span></label>
-          <input type="range" id="dust" min="0" max="2" step="0.01" value="1" />
+          <label>Intensity <span class="val" data-val="intensity">100%</span></label>
+          <input type="range" id="intensity" min="0.2" max="2.5" step="0.01" value="1" />
         </div>
         <div class="ctrl">
-          <label>Background Stars <span class="val" data-val="starBrightness">100%</span></label>
-          <input type="range" id="starBrightness" min="0" max="2" step="0.01" value="1" />
+          <label>Bloom <span class="val" data-val="bloomStrength">110%</span></label>
+          <input type="range" id="bloomStrength" min="0" max="2" step="0.01" value="1.1" />
         </div>
         <div class="ctrl">
-          <label>Bloom <span class="val" data-val="bloomStrength">70%</span></label>
-          <input type="range" id="bloomStrength" min="0" max="2" step="0.01" value="0.7" />
-        </div>
-        <div class="ctrl">
-          <label>Exposure <span class="val" data-val="exposure">1.10</span></label>
-          <input type="range" id="exposure" min="0.4" max="2.5" step="0.01" value="1.1" />
-        </div>
-        <div class="ctrl">
-          <label>Render Quality <span class="val" data-val="quality">1.0&times;</span></label>
-          <input type="range" id="quality" min="0.5" max="1.8" step="0.05" value="1" />
+          <label>Exposure <span class="val" data-val="exposure">1.00</span></label>
+          <input type="range" id="exposure" min="0.4" max="2.5" step="0.01" value="1" />
         </div>
         <div class="row">
           <button class="btn active" id="autoRotate">Auto-Orbit</button>
@@ -75,44 +67,35 @@ const description =
 
       <div class="overlay" id="overlay">
         <div class="spinner" id="spinner"></div>
-        <p id="status">Spinning up the arms…</p>
+        <p id="status">Igniting the core…</p>
       </div>
     </div>
 
     <script>
-      import { GalaxyRenderer, defaultGalaxySettings } from '../lib/galaxyRenderer';
+      import { SupernovaRenderer, defaultSupernovaSettings } from '../lib/supernovaRenderer';
 
       const canvas = document.getElementById('gl') as HTMLCanvasElement;
       const overlay = document.getElementById('overlay')!;
       const spinner = document.getElementById('spinner')!;
       const status = document.getElementById('status')!;
-
-      function fail(msg: string) {
-        spinner.style.display = 'none';
-        status.className = 'err';
-        status.innerHTML = msg;
-      }
+      const fail = (m: string) => { spinner.style.display = 'none'; status.className = 'err'; status.innerHTML = m; };
 
       try {
-        const settings = { ...defaultGalaxySettings };
-        const renderer = new GalaxyRenderer(canvas, settings);
+        const settings = { ...defaultSupernovaSettings };
+        const renderer = new SupernovaRenderer(canvas, settings);
 
         const fpsEl = document.getElementById('fps')!;
-        let lowFrames = 0;
+        let low = 0;
         renderer.onFps = (fps) => {
           fpsEl.textContent = Math.round(fps) + ' fps';
-          if (fps < 28 && settings.resScale > 0.6) {
-            if (++lowFrames > 6) { settings.resScale = 0.7; settings.quality = 0.8; lowFrames = 0; }
-          } else lowFrames = 0;
+          if (fps < 28 && settings.resScale > 0.6) { if (++low > 6) { settings.resScale = 0.7; low = 0; } } else low = 0;
         };
 
         const sliders: Record<string, (v: number) => string> = {
-          brightness: (v) => Math.round(v * 100) + '%',
-          dust: (v) => Math.round(v * 100) + '%',
-          starBrightness: (v) => Math.round(v * 100) + '%',
+          period: (v) => v.toFixed(1) + 's',
+          intensity: (v) => Math.round(v * 100) + '%',
           bloomStrength: (v) => Math.round(v * 100) + '%',
           exposure: (v) => v.toFixed(2),
-          quality: (v) => v.toFixed(1) + '×',
         };
         for (const key of Object.keys(sliders)) {
           const input = document.getElementById(key) as HTMLInputElement;
@@ -129,28 +112,20 @@ const description =
           settings.autoRotate = !settings.autoRotate;
           autoBtn.classList.toggle('active', settings.autoRotate);
         });
-        document.getElementById('reset')!.addEventListener('click', () => {
-          renderer.resetView();
-          autoBtn.classList.add('active');
-        });
+        document.getElementById('reset')!.addEventListener('click', () => { renderer.resetView(); autoBtn.classList.add('active'); });
 
         const panel = document.getElementById('panel')!;
         document.getElementById('collapse')!.addEventListener('click', () => panel.classList.add('collapsed'));
         document.getElementById('showPanel')!.addEventListener('click', () => panel.classList.remove('collapsed'));
 
         window.addEventListener('resize', () => renderer.resize());
-        document.addEventListener('visibilitychange', () => {
-          if (document.hidden) renderer.stop(); else renderer.start();
-        });
+        document.addEventListener('visibilitychange', () => { if (document.hidden) renderer.stop(); else renderer.start(); });
 
         renderer.start();
         setTimeout(() => overlay.classList.add('hidden'), 350);
       } catch (e) {
         console.error(e);
-        fail(
-          'Your browser could not start the simulator.<br/>It requires <strong>WebGL2</strong>. ' +
-          'Try an up-to-date Chrome, Edge, Firefox or Safari with hardware acceleration enabled.'
-        );
+        fail('Your browser could not start the simulator.<br/>It requires <strong>WebGL2</strong>. Try an up-to-date Chrome, Edge, Firefox or Safari with hardware acceleration enabled.');
       }
     </script>
   </body>

@@ -3,7 +3,7 @@ import '../styles/global.css';
 import SceneNav from '../components/SceneNav.astro';
 
 const description =
-  'A detailed, real-time solar system — a granulating Sun, eight procedurally-rendered worlds with clouds, ice caps, storms and city lights, Saturn\'s shadowed rings, and the Moon. Orbit it, speed up time, and fly to any planet. WebGL2.';
+  'Drift around a volumetric emission nebula — turbulent clouds of glowing hydrogen and oxygen lit from within by newborn stars, with dust lanes and a sky full of suns. WebGL2.';
 ---
 
 <!doctype html>
@@ -13,53 +13,46 @@ const description =
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
     <meta name="description" content={description} />
     <meta name="theme-color" content="#000005" />
-    <meta property="og:title" content="Solar System — Real-Time Simulator" />
+    <meta property="og:title" content="Nebula — Volumetric Simulator" />
     <meta property="og:description" content={description} />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
-    <title>Solar System — Real-Time Simulator</title>
+    <title>Nebula — Volumetric Simulator</title>
   </head>
   <body>
     <div id="app">
       <canvas id="gl"></canvas>
 
       <header class="title">
-        <h1>Solar System</h1>
+        <h1>Nebula</h1>
         <p>{description}</p>
       </header>
 
-      <SceneNav current="/solar-system" />
+      <SceneNav current="/nebula" />
 
       <aside class="panel" id="panel">
-        <h2>Mission Control</h2>
-
+        <h2>Controls</h2>
         <div class="ctrl">
-          <label>Fly to</label>
-          <div class="bodies" id="bodies"></div>
-        </div>
-
-        <div class="ctrl">
-          <label>Time Speed <span class="val" data-val="timeSpeed">1.0&times;</span></label>
-          <input type="range" id="timeSpeed" min="0" max="8" step="0.1" value="1" />
+          <label>Gas Density <span class="val" data-val="density">100%</span></label>
+          <input type="range" id="density" min="0.2" max="2" step="0.01" value="1" />
         </div>
         <div class="ctrl">
-          <label>Orbit Lines <span class="val" data-val="orbitLines">100%</span></label>
-          <input type="range" id="orbitLines" min="0" max="1" step="0.01" value="1" />
+          <label>Glow <span class="val" data-val="brightness">100%</span></label>
+          <input type="range" id="brightness" min="0.2" max="2.5" step="0.01" value="1" />
         </div>
         <div class="ctrl">
-          <label>Sun Glow <span class="val" data-val="glow">100%</span></label>
-          <input type="range" id="glow" min="0" max="2.5" step="0.01" value="1" />
+          <label>Embedded Stars <span class="val" data-val="starBrightness">100%</span></label>
+          <input type="range" id="starBrightness" min="0" max="2.5" step="0.01" value="1" />
         </div>
         <div class="ctrl">
           <label>Bloom <span class="val" data-val="bloomStrength">80%</span></label>
           <input type="range" id="bloomStrength" min="0" max="2" step="0.01" value="0.8" />
         </div>
         <div class="ctrl">
-          <label>Exposure <span class="val" data-val="exposure">1.10</span></label>
-          <input type="range" id="exposure" min="0.4" max="2.5" step="0.01" value="1.1" />
+          <label>Exposure <span class="val" data-val="exposure">1.15</span></label>
+          <input type="range" id="exposure" min="0.4" max="2.5" step="0.01" value="1.15" />
         </div>
-
         <div class="row">
           <button class="btn active" id="autoRotate">Auto-Orbit</button>
           <button class="btn" id="reset">Reset View</button>
@@ -73,61 +66,39 @@ const description =
 
       <footer class="hud">
         <span><span class="dot"></span> <span class="fps" id="fps">— fps</span></span>
-        <span class="hint">Drag to orbit · Scroll to zoom · Click a world to fly there</span>
+        <span class="hint">Drag to orbit · Scroll to zoom · Pinch on touch</span>
       </footer>
 
       <div class="overlay" id="overlay">
         <div class="spinner" id="spinner"></div>
-        <p id="status">Aligning the planets…</p>
+        <p id="status">Condensing the clouds…</p>
       </div>
     </div>
 
     <script>
-      import { SolarRenderer, defaultSolarSettings, BODIES } from '../lib/solarRenderer';
+      import { NebulaRenderer, defaultNebulaSettings } from '../lib/nebulaRenderer';
 
       const canvas = document.getElementById('gl') as HTMLCanvasElement;
       const overlay = document.getElementById('overlay')!;
       const spinner = document.getElementById('spinner')!;
       const status = document.getElementById('status')!;
-
-      function fail(msg: string) {
-        spinner.style.display = 'none';
-        status.className = 'err';
-        status.innerHTML = msg;
-      }
+      const fail = (m: string) => { spinner.style.display = 'none'; status.className = 'err'; status.innerHTML = m; };
 
       try {
-        const settings = { ...defaultSolarSettings };
-        const renderer = new SolarRenderer(canvas, settings);
-
-        // build planet focus buttons
-        const bodiesEl = document.getElementById('bodies')!;
-        BODIES.forEach((b, i) => {
-          if (b.name === 'Moon') return; // reachable by flying to Earth
-          const btn = document.createElement('button');
-          btn.className = 'chip' + (i === 0 ? ' active' : '');
-          btn.textContent = b.name;
-          btn.addEventListener('click', () => {
-            renderer.focus(i);
-            bodiesEl.querySelectorAll('.chip').forEach((c) => c.classList.remove('active'));
-            btn.classList.add('active');
-          });
-          bodiesEl.appendChild(btn);
-        });
+        const settings = { ...defaultNebulaSettings };
+        const renderer = new NebulaRenderer(canvas, settings);
 
         const fpsEl = document.getElementById('fps')!;
-        let lowFrames = 0;
+        let low = 0;
         renderer.onFps = (fps) => {
           fpsEl.textContent = Math.round(fps) + ' fps';
-          if (fps < 28 && settings.resScale > 0.6) {
-            if (++lowFrames > 6) { settings.resScale = 0.7; lowFrames = 0; }
-          } else lowFrames = 0;
+          if (fps < 28 && settings.resScale > 0.6) { if (++low > 6) { settings.resScale = 0.7; low = 0; } } else low = 0;
         };
 
         const sliders: Record<string, (v: number) => string> = {
-          timeSpeed: (v) => v.toFixed(1) + '×',
-          orbitLines: (v) => Math.round(v * 100) + '%',
-          glow: (v) => Math.round(v * 100) + '%',
+          density: (v) => Math.round(v * 100) + '%',
+          brightness: (v) => Math.round(v * 100) + '%',
+          starBrightness: (v) => Math.round(v * 100) + '%',
           bloomStrength: (v) => Math.round(v * 100) + '%',
           exposure: (v) => v.toFixed(2),
         };
@@ -146,29 +117,20 @@ const description =
           settings.autoRotate = !settings.autoRotate;
           autoBtn.classList.toggle('active', settings.autoRotate);
         });
-        document.getElementById('reset')!.addEventListener('click', () => {
-          renderer.resetView();
-          autoBtn.classList.add('active');
-          bodiesEl.querySelectorAll('.chip').forEach((c, idx) => c.classList.toggle('active', idx === 0));
-        });
+        document.getElementById('reset')!.addEventListener('click', () => { renderer.resetView(); autoBtn.classList.add('active'); });
 
         const panel = document.getElementById('panel')!;
         document.getElementById('collapse')!.addEventListener('click', () => panel.classList.add('collapsed'));
         document.getElementById('showPanel')!.addEventListener('click', () => panel.classList.remove('collapsed'));
 
         window.addEventListener('resize', () => renderer.resize());
-        document.addEventListener('visibilitychange', () => {
-          if (document.hidden) renderer.stop(); else renderer.start();
-        });
+        document.addEventListener('visibilitychange', () => { if (document.hidden) renderer.stop(); else renderer.start(); });
 
         renderer.start();
         setTimeout(() => overlay.classList.add('hidden'), 350);
       } catch (e) {
         console.error(e);
-        fail(
-          'Your browser could not start the simulator.<br/>It requires <strong>WebGL2</strong>. ' +
-          'Try an up-to-date Chrome, Edge, Firefox or Safari with hardware acceleration enabled.'
-        );
+        fail('Your browser could not start the simulator.<br/>It requires <strong>WebGL2</strong>. Try an up-to-date Chrome, Edge, Firefox or Safari with hardware acceleration enabled.');
       }
     </script>
   </body>

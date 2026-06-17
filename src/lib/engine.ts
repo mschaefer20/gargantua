@@ -1,8 +1,10 @@
-// WebGL2 engine for the spiral galaxy page.
-// Raymarches the galaxy shader to an HDR target, then reuses the shared bloom +
-// ACES composite passes. Orbit camera (drag / wheel / pinch) with auto-rotate.
+// Shared WebGL2 engine for the orbit-camera scenes (galaxy, pulsar, nebula,
+// supernova, ...). Encapsulates the HDR render target, a 3-iteration bloom,
+// the ACES composite, an orbit camera with drag/wheel/pinch controls, fps
+// reporting, and supersampling AA (the scene is rendered above display
+// resolution and downsampled for crisp edges). Subclasses only supply a scene
+// fragment shader and set their scene-specific uniforms.
 
-import { galaxyFrag } from '../shaders/galaxy.frag';
 import {
   fullscreenVert,
   brightPassFrag,
@@ -10,27 +12,23 @@ import {
   compositeFrag,
 } from '../shaders/post';
 
-export interface GalaxySettings {
-  brightness: number;
-  dust: number;
-  starBrightness: number;
-  bloomStrength: number;
+export interface BaseSettings {
   exposure: number;
-  quality: number;
+  bloomStrength: number;
   resScale: number;
   autoRotate: boolean;
 }
 
-export const defaultGalaxySettings: GalaxySettings = {
-  brightness: 1.0,
-  dust: 1.0,
-  starBrightness: 1.0,
-  bloomStrength: 0.7,
-  exposure: 1.1,
-  quality: 1.0,
-  resScale: 1.0,
-  autoRotate: true,
-};
+export interface EngineOpts {
+  bloomThreshold?: number;
+  bloomIterations?: number;
+  distance?: number;
+  minDistance?: number;
+  maxDistance?: number;
+  azimuth?: number;
+  elevation?: number;
+  rotateSpeed?: number;
+}
 
 interface FBO { fb: WebGLFramebuffer; tex: WebGLTexture; w: number; h: number; }
 
@@ -56,11 +54,12 @@ function program(gl: WebGL2RenderingContext, frag: string, vert = fullscreenVert
   return p;
 }
 
-export class GalaxyRenderer {
-  private gl: WebGL2RenderingContext;
-  private canvas: HTMLCanvasElement;
+export abstract class Engine<S extends BaseSettings> {
+  protected gl: WebGL2RenderingContext;
+  protected canvas: HTMLCanvasElement;
+  public settings: S;
 
-  private sceneProg: WebGLProgram;
+  protected sceneProg: WebGLProgram;
   private brightProg: WebGLProgram;
   private blurProg: WebGLProgram;
   private compProg: WebGLProgram;
@@ -72,23 +71,34 @@ export class GalaxyRenderer {
   private texFormat: number;
   private texType: number;
 
-  private azimuth = 0.7;
-  private elevation = 0.5;
-  private distance = 30.0;
-  private targetDistance = 30.0;
+  private bloomThreshold: number;
+  private bloomIterations: number;
 
-  private startTime = performance.now();
+  // orbit camera
+  protected azimuth: number;
+  protected elevation: number;
+  protected distance: number;
+  protected targetDistance: number;
+  protected target = new Float32Array([0, 0, 0]);
+  protected rotateSpeed: number;
+  private minDistance: number;
+  private maxDistance: number;
+  private defAz: number;
+  private defEl: number;
+  private defDist: number;
+
+  protected startTime = performance.now();
+  protected lastNow = performance.now();
   private raf = 0;
-  private rw = 0;
-  private rh = 0;
+  protected rw = 0;
+  protected rh = 0;
   private destroyed = false;
 
-  public settings: GalaxySettings;
   public onFps?: (fps: number) => void;
   private fpsFrames = 0;
   private fpsLast = performance.now();
 
-  constructor(canvas: HTMLCanvasElement, settings: GalaxySettings) {
+  constructor(canvas: HTMLCanvasElement, sceneFrag: string, settings: S, opts: EngineOpts = {}) {
     this.canvas = canvas;
     this.settings = settings;
     const gl = canvas.getContext('webgl2', {
@@ -103,16 +113,36 @@ export class GalaxyRenderer {
     else { this.texFormat = gl.RGBA8; this.texType = gl.UNSIGNED_BYTE; }
     gl.getExtension('OES_texture_float_linear');
 
-    this.sceneProg = program(gl, galaxyFrag);
+    this.sceneProg = program(gl, sceneFrag);
     this.brightProg = program(gl, brightPassFrag);
     this.blurProg = program(gl, blurFrag);
     this.compProg = program(gl, compositeFrag);
     this.vao = gl.createVertexArray()!;
 
+    this.bloomThreshold = opts.bloomThreshold ?? 0.7;
+    this.bloomIterations = opts.bloomIterations ?? 3;
+    this.distance = this.targetDistance = this.defDist = opts.distance ?? 20;
+    this.minDistance = opts.minDistance ?? 5;
+    this.maxDistance = opts.maxDistance ?? 80;
+    this.azimuth = this.defAz = opts.azimuth ?? 0.6;
+    this.elevation = this.defEl = opts.elevation ?? 0.3;
+    this.rotateSpeed = opts.rotateSpeed ?? 0.0012;
+
     this.attachControls();
     this.resize();
   }
 
+  // ----- scene hooks for subclasses -----
+  /** Advance per-frame simulation/camera state. */
+  protected onUpdate(_dt: number, _t: number): void {}
+  /** Set scene-specific uniforms (resolution/time/camera already set). */
+  protected abstract setSceneUniforms(t: number): void;
+
+  protected u(name: string): WebGLUniformLocation | null {
+    return this.gl.getUniformLocation(this.sceneProg, name);
+  }
+
+  // ----- FBO management -----
   private createFBO(w: number, h: number): FBO {
     const gl = this.gl;
     const tex = gl.createTexture()!;
@@ -135,8 +165,9 @@ export class GalaxyRenderer {
   }
 
   resize() {
-    const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1.5), 2.0); // supersample for AA
-    const scale = this.settings.resScale * dpr;
+    // Supersample: render at >= 1.5x display density (capped 2x) for AA.
+    const pr = Math.min(Math.max(window.devicePixelRatio || 1, 1.5), 2.0);
+    const scale = this.settings.resScale * pr;
     const w = Math.max(2, Math.floor(this.canvas.clientWidth * scale));
     const h = Math.max(2, Math.floor(this.canvas.clientHeight * scale));
     if (w === this.rw && h === this.rh) return;
@@ -148,18 +179,20 @@ export class GalaxyRenderer {
     this.bloomB = this.createFBO(Math.max(1, w >> 1), Math.max(1, h >> 1));
   }
 
-  private cameraBasis(): { pos: Float32Array; mat: Float32Array } {
+  // ----- camera -----
+  protected cameraBasis(): { pos: Float32Array; mat: Float32Array } {
     const el = this.elevation, az = this.azimuth, ce = Math.cos(el);
+    const tx = this.target[0], ty = this.target[1], tz = this.target[2];
     const pos = new Float32Array([
-      this.distance * ce * Math.sin(az),
-      this.distance * Math.sin(el),
-      this.distance * ce * Math.cos(az),
+      tx + this.distance * ce * Math.sin(az),
+      ty + this.distance * Math.sin(el),
+      tz + this.distance * ce * Math.cos(az),
     ]);
-    const fx = -pos[0], fy = -pos[1], fz = -pos[2];
-    const fl = Math.hypot(fx, fy, fz);
+    const fx = tx - pos[0], fy = ty - pos[1], fz = tz - pos[2];
+    const fl = Math.hypot(fx, fy, fz) || 1;
     const f = [fx / fl, fy / fl, fz / fl];
-    let rx = f[2], ry = 0, rz = -f[0]; // cross(worldUp, f) with up=(0,1,0)
-    const rl = Math.hypot(rx, ry, rz);
+    let rx = f[2], ry = 0, rz = -f[0];
+    const rl = Math.hypot(rx, ry, rz) || 1;
     rx /= rl; ry /= rl; rz /= rl;
     const ux = f[1] * rz - f[2] * ry;
     const uy = f[2] * rx - f[0] * rz;
@@ -168,8 +201,8 @@ export class GalaxyRenderer {
     return { pos, mat };
   }
 
-  private drawQuad() { this.gl.drawArrays(this.gl.TRIANGLES, 0, 3); }
-  private setF2(name: string, prog: WebGLProgram, a: number, b: number) {
+  protected drawQuad() { this.gl.drawArrays(this.gl.TRIANGLES, 0, 3); }
+  protected setF2(prog: WebGLProgram, name: string, a: number, b: number) {
     this.gl.uniform2f(this.gl.getUniformLocation(prog, name), a, b);
   }
   private bindTex(prog: WebGLProgram, name: string, tex: WebGLTexture, unit: number) {
@@ -179,32 +212,33 @@ export class GalaxyRenderer {
     gl.uniform1i(gl.getUniformLocation(prog, name), unit);
   }
 
-  private renderFrame = () => {
+  private frame = () => {
     if (this.destroyed) return;
     const gl = this.gl;
     this.resize();
-    const t = (performance.now() - this.startTime) / 1000;
-    const s = this.settings;
 
-    if (s.autoRotate) this.azimuth += 0.0009;
+    const now = performance.now();
+    const dt = Math.min(0.05, (now - this.lastNow) / 1000);
+    this.lastNow = now;
+    const t = (now - this.startTime) / 1000;
+
+    if (this.settings.autoRotate) this.azimuth += this.rotateSpeed;
     this.distance += (this.targetDistance - this.distance) * 0.08;
+    this.onUpdate(dt, t);
 
     const { pos, mat } = this.cameraBasis();
     gl.bindVertexArray(this.vao);
 
-    // Pass 1: galaxy -> HDR
+    // Pass 1: scene -> HDR
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.sceneFBO.fb);
     gl.viewport(0, 0, this.rw, this.rh);
     gl.useProgram(this.sceneProg);
-    this.setF2('u_resolution', this.sceneProg, this.rw, this.rh);
-    gl.uniform1f(gl.getUniformLocation(this.sceneProg, 'u_time'), t);
-    gl.uniform3fv(gl.getUniformLocation(this.sceneProg, 'u_camPos'), pos);
-    gl.uniformMatrix3fv(gl.getUniformLocation(this.sceneProg, 'u_camMat'), false, mat);
-    gl.uniform1f(gl.getUniformLocation(this.sceneProg, 'u_fov'), 1.0);
-    gl.uniform1f(gl.getUniformLocation(this.sceneProg, 'u_brightness'), s.brightness);
-    gl.uniform1f(gl.getUniformLocation(this.sceneProg, 'u_dust'), s.dust);
-    gl.uniform1f(gl.getUniformLocation(this.sceneProg, 'u_starBrightness'), s.starBrightness);
-    gl.uniform1f(gl.getUniformLocation(this.sceneProg, 'u_quality'), s.quality);
+    this.setF2(this.sceneProg, 'u_resolution', this.rw, this.rh);
+    gl.uniform1f(this.u('u_time'), t);
+    gl.uniform3fv(this.u('u_camPos'), pos);
+    gl.uniformMatrix3fv(this.u('u_camMat'), false, mat);
+    gl.uniform1f(this.u('u_fov'), 1.0);
+    this.setSceneUniforms(t);
     this.drawQuad();
 
     // Pass 2: bright extract
@@ -212,21 +246,21 @@ export class GalaxyRenderer {
     gl.viewport(0, 0, this.bloomA.w, this.bloomA.h);
     gl.useProgram(this.brightProg);
     this.bindTex(this.brightProg, 'u_tex', this.sceneFBO.tex, 0);
-    gl.uniform1f(gl.getUniformLocation(this.brightProg, 'u_threshold'), 0.65);
+    gl.uniform1f(gl.getUniformLocation(this.brightProg, 'u_threshold'), this.bloomThreshold);
     this.drawQuad();
 
-    // Pass 3: blur x2
-    for (let i = 0; i < 3; i++) {
+    // Pass 3: separable Gaussian blur, N iterations
+    gl.useProgram(this.blurProg);
+    for (let i = 0; i < this.bloomIterations; i++) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomB.fb);
       gl.viewport(0, 0, this.bloomB.w, this.bloomB.h);
-      gl.useProgram(this.blurProg);
       this.bindTex(this.blurProg, 'u_tex', this.bloomA.tex, 0);
-      this.setF2('u_dir', this.blurProg, 1.0 / this.bloomA.w, 0);
+      this.setF2(this.blurProg, 'u_dir', 1.0 / this.bloomA.w, 0);
       this.drawQuad();
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomA.fb);
       gl.viewport(0, 0, this.bloomA.w, this.bloomA.h);
       this.bindTex(this.blurProg, 'u_tex', this.bloomB.tex, 0);
-      this.setF2('u_dir', this.blurProg, 0, 1.0 / this.bloomB.h);
+      this.setF2(this.blurProg, 'u_dir', 0, 1.0 / this.bloomB.h);
       this.drawQuad();
     }
 
@@ -236,20 +270,20 @@ export class GalaxyRenderer {
     gl.useProgram(this.compProg);
     this.bindTex(this.compProg, 'u_scene', this.sceneFBO.tex, 0);
     this.bindTex(this.compProg, 'u_bloom', this.bloomA.tex, 1);
-    gl.uniform1f(gl.getUniformLocation(this.compProg, 'u_bloomStrength'), s.bloomStrength);
-    gl.uniform1f(gl.getUniformLocation(this.compProg, 'u_exposure'), s.exposure);
+    gl.uniform1f(gl.getUniformLocation(this.compProg, 'u_bloomStrength'), this.settings.bloomStrength);
+    gl.uniform1f(gl.getUniformLocation(this.compProg, 'u_exposure'), this.settings.exposure);
     gl.uniform1f(gl.getUniformLocation(this.compProg, 'u_time'), t);
     this.drawQuad();
 
     this.fpsFrames++;
-    const now = performance.now();
     if (now - this.fpsLast >= 500) {
       this.onFps?.((this.fpsFrames * 1000) / (now - this.fpsLast));
       this.fpsFrames = 0; this.fpsLast = now;
     }
-    this.raf = requestAnimationFrame(this.renderFrame);
+    this.raf = requestAnimationFrame(this.frame);
   };
 
+  // ----- controls -----
   private attachControls() {
     const c = this.canvas;
     let dragging = false, lastX = 0, lastY = 0;
@@ -284,15 +318,15 @@ export class GalaxyRenderer {
     c.addEventListener('pointercancel', up);
     c.addEventListener('wheel', (e) => { e.preventDefault(); this.zoom(e.deltaY * 0.02); }, { passive: false });
   }
-  private zoom(amount: number) {
-    this.targetDistance = Math.max(8.0, Math.min(60.0, this.targetDistance + amount));
+  protected zoom(amount: number) {
+    this.targetDistance = Math.max(this.minDistance, Math.min(this.maxDistance, this.targetDistance + amount));
   }
 
-  start() { this.raf = requestAnimationFrame(this.renderFrame); }
+  start() { this.lastNow = performance.now(); this.raf = requestAnimationFrame(this.frame); }
   stop() { cancelAnimationFrame(this.raf); }
   destroy() { this.destroyed = true; this.stop(); }
   resetView() {
-    this.azimuth = 0.7; this.elevation = 0.5; this.targetDistance = 30.0;
-    this.settings.autoRotate = true;
+    this.azimuth = this.defAz; this.elevation = this.defEl;
+    this.targetDistance = this.defDist; this.settings.autoRotate = true;
   }
 }

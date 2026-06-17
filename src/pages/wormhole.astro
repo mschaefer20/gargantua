@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import SceneNav from '../components/SceneNav.astro';
 
 const description =
   'Plunge through a wormhole at warp speed — a swirling spacetime tunnel with energy veins, a glowing throat, relativistic star-streaks, and emergence into new universes. WebGL2, in your browser.';
@@ -28,11 +29,7 @@ const description =
         <p>{description}</p>
       </header>
 
-      <nav class="page-nav">
-        <a href="/" class="navlink">Black Hole</a>
-        <a href="/galaxy" class="navlink">Spiral Galaxy</a>
-        <a href="/solar-system" class="navlink">Solar System</a>
-      </nav>
+      <SceneNav current="/wormhole" />
 
       <aside class="panel" id="panel">
         <h2>Flight Deck</h2>

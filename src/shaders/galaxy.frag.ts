@@ -120,7 +120,7 @@ void main(){
     float t0 = max(-b - sq, 0.0);
     float t1 = -b + sq;
 
-    int steps = int(90.0 * u_quality);
+    int steps = int(120.0 * u_quality);
     float dt = (t1 - t0) / float(steps);
     // jitter to suppress slice banding
     float jitter = hash13(vec3(gl_FragCoord.xy, u_time));

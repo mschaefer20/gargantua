@@ -159,7 +159,7 @@ export class BlackHoleRenderer {
   }
 
   resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(Math.max(window.devicePixelRatio || 1, 1.5), 2.0); // supersample for AA
     const scale = this.settings.resScale * dpr;
     const w = Math.max(2, Math.floor(this.canvas.clientWidth * scale));
     const h = Math.max(2, Math.floor(this.canvas.clientHeight * scale));
@@ -257,7 +257,7 @@ export class BlackHoleRenderer {
     this.drawQuad();
 
     // ---- Pass 3: separable Gaussian blur, two iterations ----
-    for (let i = 0; i < 2; i++) {
+    for (let i = 0; i < 3; i++) {
       // horizontal: bloomA -> bloomB
       gl.bindFramebuffer(gl.FRAMEBUFFER, this.bloomB.fb);
       gl.viewport(0, 0, this.bloomB.w, this.bloomB.h);

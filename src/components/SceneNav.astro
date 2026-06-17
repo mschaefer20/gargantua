@@ -1,0 +1,21 @@
+---
+// Cross-navigation between all scenes. Pass the current route so it is omitted.
+interface Props { current: string }
+const { current } = Astro.props;
+
+const scenes = [
+  { href: '/', name: 'Black Hole' },
+  { href: '/wormhole', name: 'Wormhole' },
+  { href: '/galaxy', name: 'Galaxy' },
+  { href: '/solar-system', name: 'Solar System' },
+  { href: '/pulsar', name: 'Pulsar' },
+  { href: '/nebula', name: 'Nebula' },
+  { href: '/supernova', name: 'Supernova' },
+];
+---
+
+<nav class="page-nav">
+  {scenes.filter((s) => s.href !== current).map((s) => (
+    <a href={s.href} class="navlink">{s.name}</a>
+  ))}
+</nav>

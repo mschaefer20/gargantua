@@ -23,5 +23,5 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
-# smoke-test artifact
-scripts/render.png
+# smoke-test artifacts
+scripts/*.png

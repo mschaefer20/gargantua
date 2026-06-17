@@ -188,7 +188,7 @@ void main() {
   float transmit = 1.0;       // remaining transparency through disk
   bool captured = false;
 
-  int steps = int(180.0 * u_quality);
+  int steps = int(240.0 * u_quality);
   float prevY = pos.y;
 
   for (int i = 0; i < 512; i++) {

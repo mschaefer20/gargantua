@@ -36,6 +36,13 @@ and sharing one HDR bloom + ACES post-pipeline:
 | **Wormhole** | `/wormhole` | A calm, deep-space flight through a spacetime tunnel toward a distant throat. |
 | **Spiral Galaxy** | `/galaxy` | Orbitable volumetric galaxy — glowing core, dust-laned arms, HII knots. |
 | **Solar System** | `/solar-system` | Sun + 8 procedural planets + the Moon, Saturn's shadowed rings, orbit lines, fly-to-any-world camera. |
+| **Pulsar** | `/pulsar` | A spinning neutron star firing twin relativistic beams along a tilted magnetic axis; the sky pulses as a beam sweeps by. |
+| **Nebula** | `/nebula` | Volumetric emission nebula — H-alpha/O-III gas clouds lit from within by embedded young stars. |
+| **Supernova** | `/supernova` | A looping stellar detonation: core flash + decelerating shockwave shell cooling from blue-white to red. |
+
+Shared infrastructure: orbit-camera scenes are built on `src/lib/engine.ts`
+(HDR target, 3-iteration bloom, ACES, supersampling AA, orbit controls); all
+scenes share `src/shaders/post.ts` for bloom + tonemapping.
 
 ## 🚀 Develop
 

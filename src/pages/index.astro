@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import SceneNav from '../components/SceneNav.astro';
 
 const title = 'Gargantua';
 const description =
@@ -33,11 +34,7 @@ const description =
         <p>{description}</p>
       </header>
 
-      <nav class="page-nav">
-        <a href="/wormhole" class="navlink">Wormhole</a>
-        <a href="/galaxy" class="navlink">Spiral Galaxy</a>
-        <a href="/solar-system" class="navlink">Solar System</a>
-      </nav>
+      <SceneNav current="/" />
 
       <aside class="panel" id="panel">
         <h2>Controls</h2>
