@@ -171,6 +171,10 @@ input[type="range"]::-moz-range-thumb {
   left: clamp(20px, 4vw, 48px);
   top: clamp(120px, 22vh, 200px);
   z-index: 6;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: min(60vw, 360px);
 }
 .navlink {
   display: inline-flex;
