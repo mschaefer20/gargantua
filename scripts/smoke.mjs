@@ -6,7 +6,7 @@ import { writeFileSync } from 'node:fs';
 import http from 'node:http';
 
 const CHROME = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-const URL = 'http://localhost:4321/';
+const URL = process.argv[2] || 'http://localhost:4321/';
 const PORT = 9222;
 
 const chrome = spawn(CHROME, [

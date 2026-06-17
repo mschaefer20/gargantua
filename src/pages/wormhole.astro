@@ -1,0 +1,153 @@
+---
+import '../styles/global.css';
+
+const description =
+  'Plunge through a wormhole at warp speed — a swirling spacetime tunnel with energy veins, a glowing throat, relativistic star-streaks, and emergence into new universes. WebGL2, in your browser.';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#000005" />
+    <meta property="og:title" content="Wormhole — Warp Traversal" />
+    <meta property="og:description" content={description} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+    <title>Wormhole — Warp-Speed Traversal</title>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="gl"></canvas>
+
+      <header class="title">
+        <h1>Wormhole</h1>
+        <p>{description}</p>
+      </header>
+
+      <nav class="page-nav">
+        <a href="/" class="navlink">← Black Hole</a>
+      </nav>
+
+      <aside class="panel" id="panel">
+        <h2>Flight Deck</h2>
+        <div class="ctrl">
+          <label>Cruise Speed <span class="val" data-val="speed">6.0</span></label>
+          <input type="range" id="speed" min="1.5" max="20" step="0.1" value="6" />
+        </div>
+        <div class="ctrl">
+          <label>Star-Streaks <span class="val" data-val="warp">100%</span></label>
+          <input type="range" id="warp" min="0" max="2" step="0.01" value="1" />
+        </div>
+        <div class="ctrl">
+          <label>Throat Glow <span class="val" data-val="throat">100%</span></label>
+          <input type="range" id="throat" min="0" max="2" step="0.01" value="1" />
+        </div>
+        <div class="ctrl">
+          <label>Bloom <span class="val" data-val="bloomStrength">85%</span></label>
+          <input type="range" id="bloomStrength" min="0" max="2" step="0.01" value="0.85" />
+        </div>
+        <div class="ctrl">
+          <label>Exposure <span class="val" data-val="exposure">0.95</span></label>
+          <input type="range" id="exposure" min="0.4" max="2.5" step="0.01" value="0.95" />
+        </div>
+        <div class="row">
+          <button class="btn" id="boost">Hold to Warp ⚡</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="collapse">Hide Panel</button>
+        </div>
+      </aside>
+
+      <button class="toggle-panel" id="showPanel" aria-label="Show controls">⚙</button>
+
+      <footer class="hud">
+        <span><span class="dot"></span> <span class="fps" id="fps">— fps</span></span>
+        <span class="hint">Move to steer · Hold click / Space to warp · Scroll for speed</span>
+      </footer>
+
+      <div class="overlay" id="overlay">
+        <div class="spinner" id="spinner"></div>
+        <p id="status">Opening the throat…</p>
+      </div>
+    </div>
+
+    <script>
+      import { WormholeRenderer, defaultWormholeSettings } from '../lib/wormholeRenderer';
+
+      const canvas = document.getElementById('gl') as HTMLCanvasElement;
+      const overlay = document.getElementById('overlay')!;
+      const spinner = document.getElementById('spinner')!;
+      const status = document.getElementById('status')!;
+
+      function fail(msg: string) {
+        spinner.style.display = 'none';
+        status.className = 'err';
+        status.innerHTML = msg;
+      }
+
+      try {
+        const settings = { ...defaultWormholeSettings };
+        const renderer = new WormholeRenderer(canvas, settings);
+
+        const fpsEl = document.getElementById('fps')!;
+        let lowFrames = 0;
+        renderer.onFps = (fps) => {
+          fpsEl.textContent = Math.round(fps) + ' fps';
+          if (fps < 30 && settings.resScale > 0.6) {
+            if (++lowFrames > 6) { settings.resScale = 0.65; lowFrames = 0; }
+          } else lowFrames = 0;
+        };
+
+        const sliders: Record<string, (v: number) => string> = {
+          speed: (v) => v.toFixed(1),
+          warp: (v) => Math.round(v * 100) + '%',
+          throat: (v) => Math.round(v * 100) + '%',
+          bloomStrength: (v) => Math.round(v * 100) + '%',
+          exposure: (v) => v.toFixed(2),
+        };
+        for (const key of Object.keys(sliders)) {
+          const input = document.getElementById(key) as HTMLInputElement;
+          const label = document.querySelector(`[data-val="${key}"]`)!;
+          input.addEventListener('input', () => {
+            const v = parseFloat(input.value);
+            (settings as any)[key] = v;
+            label.textContent = sliders[key](v);
+          });
+        }
+        // Keep the speed slider in sync when the wheel changes it.
+        const speedInput = document.getElementById('speed') as HTMLInputElement;
+        const speedLabel = document.querySelector('[data-val="speed"]')!;
+        setInterval(() => {
+          speedInput.value = String(settings.speed);
+          speedLabel.textContent = settings.speed.toFixed(1);
+        }, 300);
+
+        const boostBtn = document.getElementById('boost')!;
+        boostBtn.addEventListener('pointerdown', () => renderer.setBoost(true));
+        window.addEventListener('pointerup', () => renderer.setBoost(false));
+
+        const panel = document.getElementById('panel')!;
+        document.getElementById('collapse')!.addEventListener('click', () => panel.classList.add('collapsed'));
+        document.getElementById('showPanel')!.addEventListener('click', () => panel.classList.remove('collapsed'));
+
+        window.addEventListener('resize', () => renderer.resize());
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) renderer.stop(); else renderer.start();
+        });
+
+        renderer.start();
+        setTimeout(() => overlay.classList.add('hidden'), 350);
+      } catch (e) {
+        console.error(e);
+        fail(
+          'Your browser could not start the simulator.<br/>It requires <strong>WebGL2</strong>. ' +
+          'Try an up-to-date Chrome, Edge, Firefox or Safari with hardware acceleration enabled.'
+        );
+      }
+    </script>
+  </body>
+</html>
