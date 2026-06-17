@@ -43,8 +43,11 @@ const description =
         </div>
 
         <div class="ctrl">
-          <label>Time Speed <span class="val" data-val="timeSpeed">1.0&times;</span></label>
-          <input type="range" id="timeSpeed" min="0" max="8" step="0.1" value="1" />
+          <label>Time Speed <span class="val" data-val="timeSpeed">0.75&times;</span></label>
+          <input type="range" id="timeSpeed" min="0" max="8" step="0.05" value="0.75" />
+        </div>
+        <div class="row">
+          <button class="btn" id="devSpeed">Dev Speed · 20%</button>
         </div>
         <div class="ctrl">
           <label>Orbit Lines <span class="val" data-val="orbitLines">100%</span></label>
@@ -128,7 +131,7 @@ const description =
         };
 
         const sliders: Record<string, (v: number) => string> = {
-          timeSpeed: (v) => v.toFixed(1) + '×',
+          timeSpeed: (v) => (v < 1 ? v.toFixed(2) : v.toFixed(1)) + '×',
           orbitLines: (v) => Math.round(v * 100) + '%',
           glow: (v) => Math.round(v * 100) + '%',
           bloomStrength: (v) => Math.round(v * 100) + '%',
@@ -143,6 +146,19 @@ const description =
             label.textContent = sliders[key](v);
           });
         }
+
+        // Dev Speed: pin the simulation to a slow 20% rate and lock the slider.
+        const devBtn = document.getElementById('devSpeed')!;
+        const timeInput = document.getElementById('timeSpeed') as HTMLInputElement;
+        const timeLabel = document.querySelector('[data-val="timeSpeed"]')!;
+        devBtn.addEventListener('click', () => {
+          const on = !renderer.isDevSpeed();
+          renderer.setDevSpeed(on);
+          devBtn.classList.toggle('active', on);
+          timeInput.disabled = on;
+          timeInput.style.opacity = on ? '0.4' : '1';
+          timeLabel.textContent = on ? '0.20× (dev)' : sliders.timeSpeed(parseFloat(timeInput.value));
+        });
 
         const autoBtn = document.getElementById('autoRotate')!;
         autoBtn.addEventListener('click', () => {
