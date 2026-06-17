@@ -1,0 +1,19 @@
+{
+  "name": "gargantua-black-hole-simulator",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "A visually stunning real-time black hole simulator with gravitational lensing, built with Astro and WebGL2.",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "deploy": "astro build && wrangler pages deploy dist"
+  },
+  "dependencies": {
+    "astro": "^4.16.18"
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  }
+}

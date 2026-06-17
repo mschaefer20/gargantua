@@ -1,0 +1,27 @@
+# build output
+dist/
+.astro/
+
+# dependencies
+node_modules/
+
+# logs
+npm-debug.log*
+
+# environment
+.env
+.env.production
+.dev.vars
+
+# cloudflare
+.wrangler/
+
+# editor / local agent settings
+.claude/
+
+# os
+.DS_Store
+Thumbs.db
+
+# smoke-test artifact
+scripts/render.png

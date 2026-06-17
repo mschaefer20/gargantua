@@ -1,0 +1,172 @@
+---
+import '../styles/global.css';
+
+const title = 'Gargantua';
+const description =
+  'A real-time, physically-inspired black hole simulator with gravitational lensing, a relativistic accretion disk, and Doppler beaming — rendered entirely in your browser with WebGL2.';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="description" content={description} />
+    <meta name="theme-color" content="#000005" />
+    <meta property="og:title" content="Gargantua — Black Hole Simulator" />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap"
+      rel="stylesheet"
+    />
+    <title>Gargantua — Real-Time Black Hole Simulator</title>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="gl"></canvas>
+
+      <header class="title">
+        <h1>{title}</h1>
+        <p>{description}</p>
+      </header>
+
+      <aside class="panel" id="panel">
+        <h2>Controls</h2>
+
+        <div class="ctrl">
+          <label>Gravitational Lensing <span class="val" data-val="lensing">100%</span></label>
+          <input type="range" id="lensing" min="0" max="1.5" step="0.01" value="1" />
+        </div>
+        <div class="ctrl">
+          <label>Accretion Disk Glow <span class="val" data-val="diskIntensity">100%</span></label>
+          <input type="range" id="diskIntensity" min="0" max="2.5" step="0.01" value="1" />
+        </div>
+        <div class="ctrl">
+          <label>Bloom <span class="val" data-val="bloomStrength">90%</span></label>
+          <input type="range" id="bloomStrength" min="0" max="2" step="0.01" value="0.9" />
+        </div>
+        <div class="ctrl">
+          <label>Exposure <span class="val" data-val="exposure">1.15</span></label>
+          <input type="range" id="exposure" min="0.4" max="2.5" step="0.01" value="1.15" />
+        </div>
+        <div class="ctrl">
+          <label>Starfield <span class="val" data-val="starBrightness">100%</span></label>
+          <input type="range" id="starBrightness" min="0" max="2" step="0.01" value="1" />
+        </div>
+        <div class="ctrl">
+          <label>Render Quality <span class="val" data-val="quality">1.0&times;</span></label>
+          <input type="range" id="quality" min="0.5" max="2" step="0.05" value="1" />
+        </div>
+
+        <div class="row">
+          <button class="btn active" id="autoRotate">Auto-Orbit</button>
+          <button class="btn" id="reset">Reset View</button>
+        </div>
+        <div class="row">
+          <button class="btn" id="collapse">Hide Panel</button>
+        </div>
+      </aside>
+
+      <button class="toggle-panel" id="showPanel" aria-label="Show controls">⚙</button>
+
+      <footer class="hud">
+        <span><span class="dot"></span> <span class="fps" id="fps">— fps</span></span>
+        <span class="hint">Drag to orbit · Scroll to zoom · Pinch on touch</span>
+      </footer>
+
+      <div class="overlay" id="overlay">
+        <div class="spinner" id="spinner"></div>
+        <p id="status">Bending spacetime…</p>
+      </div>
+    </div>
+
+    <script>
+      import { BlackHoleRenderer, defaultSettings } from '../lib/renderer';
+
+      const canvas = document.getElementById('gl') as HTMLCanvasElement;
+      const overlay = document.getElementById('overlay')!;
+      const spinner = document.getElementById('spinner')!;
+      const status = document.getElementById('status')!;
+
+      function fail(msg: string) {
+        spinner.style.display = 'none';
+        status.className = 'err';
+        status.innerHTML = msg;
+      }
+
+      try {
+        const settings = { ...defaultSettings };
+        const renderer = new BlackHoleRenderer(canvas, settings);
+
+        // FPS readout + adaptive resolution: if the GPU struggles, drop resScale.
+        const fpsEl = document.getElementById('fps')!;
+        let lowFrames = 0;
+        renderer.onFps = (fps) => {
+          fpsEl.textContent = Math.round(fps) + ' fps';
+          if (fps < 30 && settings.resScale > 0.6) {
+            if (++lowFrames > 6) { settings.resScale = 0.65; lowFrames = 0; }
+          } else {
+            lowFrames = 0;
+          }
+        };
+
+        // --- slider wiring ---
+        const sliders: Record<string, (v: number) => string> = {
+          lensing: (v) => Math.round(v * 100) + '%',
+          diskIntensity: (v) => Math.round(v * 100) + '%',
+          bloomStrength: (v) => Math.round(v * 100) + '%',
+          exposure: (v) => v.toFixed(2),
+          starBrightness: (v) => Math.round(v * 100) + '%',
+          quality: (v) => v.toFixed(1) + '×',
+        };
+        for (const key of Object.keys(sliders)) {
+          const input = document.getElementById(key) as HTMLInputElement;
+          const label = document.querySelector(`[data-val="${key}"]`)!;
+          input.addEventListener('input', () => {
+            const v = parseFloat(input.value);
+            (settings as any)[key] = v;
+            label.textContent = sliders[key](v);
+          });
+        }
+
+        // --- buttons ---
+        const autoBtn = document.getElementById('autoRotate')!;
+        autoBtn.addEventListener('click', () => {
+          settings.autoRotate = !settings.autoRotate;
+          autoBtn.classList.toggle('active', settings.autoRotate);
+        });
+        document.getElementById('reset')!.addEventListener('click', () => {
+          renderer.resetView();
+          autoBtn.classList.add('active');
+        });
+
+        const panel = document.getElementById('panel')!;
+        document.getElementById('collapse')!.addEventListener('click', () =>
+          panel.classList.add('collapsed')
+        );
+        document.getElementById('showPanel')!.addEventListener('click', () =>
+          panel.classList.remove('collapsed')
+        );
+
+        window.addEventListener('resize', () => renderer.resize());
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) renderer.stop();
+          else renderer.start();
+        });
+
+        renderer.start();
+        // Reveal once the first frames are flowing.
+        setTimeout(() => overlay.classList.add('hidden'), 350);
+      } catch (e) {
+        console.error(e);
+        fail(
+          'Your browser could not start the simulator.<br/>' +
+            'It requires <strong>WebGL2</strong>. Try an up-to-date Chrome, Edge, Firefox or Safari with hardware acceleration enabled.'
+        );
+      }
+    </script>
+  </body>
+</html>
