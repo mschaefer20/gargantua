@@ -83,7 +83,7 @@ async function main() {
   const clickText = process.argv[3];
   if (clickText) {
     await send('Runtime.evaluate', {
-      expression: `[...document.querySelectorAll('.chip,.btn,button')].find(b=>b.textContent.trim()==='${clickText}')?.click()`,
+      expression: `[...document.querySelectorAll('.chip,.btn,button,a.navlink')].find(b=>b.textContent.trim()==='${clickText}')?.click()`,
     });
     await sleep(3500);
   }

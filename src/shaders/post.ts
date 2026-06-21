@@ -69,21 +69,40 @@ float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
 void main() {
-  vec3 scene = texture(u_scene, v_uv).rgb;
-  vec3 bloom = texture(u_bloom, v_uv).rgb;
-  vec3 color = scene + bloom * u_bloomStrength;
+  vec2 q = v_uv - 0.5;
+  float r2 = dot(q, q);
 
+  // Lens chromatic aberration: split the channels slightly toward the edges
+  // (scene + bloom), for a filmed-through-glass realism.
+  float ca = (0.0016 + 0.004 * r2) * r2;
+  vec2 dir = q * ca;
+  vec3 scene = vec3(
+    texture(u_scene, v_uv + dir).r,
+    texture(u_scene, v_uv).g,
+    texture(u_scene, v_uv - dir).b);
+  vec3 bloom = vec3(
+    texture(u_bloom, v_uv + dir).r,
+    texture(u_bloom, v_uv).g,
+    texture(u_bloom, v_uv - dir).b);
+
+  vec3 color = scene + bloom * u_bloomStrength;
   color *= u_exposure;
+
+  // Filmic tonemap.
   color = aces(color);
 
-  // Vignette.
-  vec2 q = v_uv - 0.5;
-  float vig = smoothstep(1.05, 0.35, length(q) * 1.35);
-  color *= mix(0.78, 1.0, vig);
+  // Soft cinematic vignette.
+  float vig = smoothstep(1.10, 0.30, length(q) * 1.30);
+  color *= mix(0.70, 1.0, vig);
 
-  // Subtle animated film grain to kill banding in the deep blacks.
-  float g = hash(v_uv * vec2(1920.0, 1080.0) + fract(u_time));
-  color += (g - 0.5) * 0.015;
+  // Gentle warm/cool split-tone for depth (cool shadows, neutral highlights).
+  float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+  color = mix(color * vec3(0.96, 0.99, 1.06), color, smoothstep(0.0, 0.5, luma));
+
+  // Fine dithered grain — kills banding in the deep blacks without looking noisy.
+  float g = hash(v_uv * vec2(1280.0, 720.0) + fract(u_time)) +
+            hash(v_uv * vec2(640.0, 360.0) - fract(u_time * 1.3));
+  color += (g - 1.0) * 0.006;
 
   // Gamma to sRGB.
   color = pow(max(color, 0.0), vec3(1.0 / 2.2));
